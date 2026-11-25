@@ -27,28 +27,14 @@ jobs:
           $uri = 'https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip'
           Invoke-WebRequest -Uri $uri -OutFile $archive
           Expand-Archive $archive $env:RUNNER_TEMP -Force
-          echo "GHIDRA_INSTALL_DIR=$env:RUNNER_TEMP\ghidra_12.2_PUBLIC" >> $env:GITHUB_ENV
+          "GHIDRA_INSTALL_DIR=$env:RUNNER_TEMP\ghidra_12.2_PUBLIC" >> $env:GITHUB_ENV
 
-      - name: Set up Ghidra-compatible Gradle
-        shell: pwsh
-        run: |
-          $properties = Join-Path $env:GHIDRA_INSTALL_DIR 'Ghidra/application.properties'
-          $match = Select-String -Path $properties -Pattern '^application\.gradle\.version=(.+)$'
-          if (-not $match) {
-            throw "Could not find application.gradle.version in $properties"
-          }
-
-          $gradleVersion = $match.Matches[0].Groups[1].Value.Trim()
-          echo "GRADLE_VERSION=$gradleVersion" >> $env:GITHUB_ENV
-          echo "Using Gradle $gradleVersion"
-
-      - name: Download and use Gradle
+      - name: Set up current Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
+          gradle-version: current
 
-      - name: Verify Java
-        shell: pwsh
+      - name: Verify Java and Gradle
         run: |
           java -version
           gradle --version
