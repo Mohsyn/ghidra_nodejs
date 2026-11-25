@@ -1,0 +1,53 @@
+name: Build Ghidra extension (Windows)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Set up Gradle 6.1.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '6.1.1'
+
+      - name: Download and verify Ghidra 9.2.2
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'ghidra_9.2.2_PUBLIC_20201229.zip'
+          $uri = 'https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_9.2.2_build/ghidra_9.2.2_PUBLIC_20201229.zip'
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+
+          $expected = '8cf8806dd5b8b7c7826f04fad8b86fc7e07ea380eae497f3035f8c974de72cf8'
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "SHA-256 mismatch: expected $expected, got $actual"
+          }
+
+          Expand-Archive $archive $env:RUNNER_TEMP -Force
+          $installDir = Join-Path $env:RUNNER_TEMP 'ghidra_9.2.2_PUBLIC'
+          echo "GHIDRA_INSTALL_DIR=$installDir" >> $env:GITHUB_ENV
+
+      - name: Build extension
+        run: gradle buildExtension
+
+      - name: Upload extension ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghidra-nodejs-extension
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
