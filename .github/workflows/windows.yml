@@ -14,26 +14,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK 27
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '27'
 
-      - name: Set up Gradle 6.1.1
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '6.1.1'
-
-      - name: Download and verify Ghidra 12.2
+      - name: Download Ghidra 12.2
         shell: pwsh
         run: |
           $archive = Join-Path $env:RUNNER_TEMP 'ghidra_12.2_PUBLIC_20261016.zip'
           $uri = 'https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip'
           Invoke-WebRequest -Uri $uri -OutFile $archive
-
           Expand-Archive $archive $env:RUNNER_TEMP -Force
-          $installDir = Join-Path $env:RUNNER_TEMP 'ghidra_12.2_PUBLIC'
-          echo "GHIDRA_INSTALL_DIR=$installDir" >> $env:GITHUB_ENV
+          echo "GHIDRA_INSTALL_DIR=$env:RUNNER_TEMP\ghidra_12.2_PUBLIC" >> $env:GITHUB_ENV
+
+      - name: Set up Ghidra-compatible Gradle
+        shell: pwsh
+        run: |
+          $properties = Join-Path $env:GHIDRA_INSTALL_DIR 'Ghidra/application.properties'
+          $match = Select-String -Path $properties -Pattern '^application\.gradle\.version=(.+)$'
+          if (-not $match) {
+            throw "Could not find application.gradle.version in $properties"
+          }
+
+          $gradleVersion = $match.Matches[0].Groups[1].Value.Trim()
+          echo "GRADLE_VERSION=$gradleVersion" >> $env:GITHUB_ENV
+          echo "Using Gradle $gradleVersion"
+
+      - name: Download and use Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Verify Java
+        shell: pwsh
+        run: |
+          java -version
+          gradle --version
 
       - name: Build extension
         run: gradle buildExtension
